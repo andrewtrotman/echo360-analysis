@@ -9,11 +9,11 @@
 		set style fill solid border
 		set title whichdata
 		set ylabel "Percent of Class"
-		set key off
+		set key on
 		set term pdf
 		set term pdfcairo size 11.7in,8.3in
 		set output whichdata.".pdf"
-		plot whichdata.".dat" using 4:xtic(1) with boxes linecolor rgb "#000080"
+		plot whichdata.".dat" using 6:xtic(1) title "Cumulative" with boxes linecolor rgb "#C00000", "" using 4:xtic(1) title "Individual" with boxes linecolor rgb "#0000C0", "" using 7:xtic(1) title "Mean Individual" with line linecolor rgb "#000000"
 	Execute this with:
 		./echo360-analysis 10 "../COSC431  student sem1.csv" > cosc431.dat
 		gnuplot -e "whichdata='cosc431'" plot.gpl
@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <map>
 #include <string>
 #include <vector>
 #include <iostream>
@@ -61,21 +62,15 @@ class lecture_statistics
 			}
 	};
 
-	/*
-		OPERATOR<<()
-		-----------
-	*/
-	std::ostream &operator<<(std::ostream &out, const lecture_statistics &object)
-		{
-		if (object.class_date == "N/A")
-			out << '"' << object.class_name << "\"," << object.students_who_watched << "," << object.class_size << "," << object.percent_students_who_watched << '\n';
-		else
-			out << "\"L" << object.class_date << "\"," << object.students_who_watched << "," << object.class_size << "," << object.percent_students_who_watched << '\n';
-
-		return out;
-		}
-
-
+/*
+	OPERATOR<<()
+	-----------
+*/
+std::ostream &operator<<(std::ostream &out, const lecture_statistics &object)
+	{
+	out << '"' << object.class_name << "\"," << object.students_who_watched << "," << object.class_size << "," << object.percent_students_who_watched;
+	return out;
+	}
 
 /*
 	CLASS STUDENT_LECTURE_DETAILS
@@ -86,7 +81,8 @@ class student_lecture_details
 	public:
 		std::string student_name;			// student name
 		std::string student_email;			// student email address
-		std::string class_name;				// lecture name
+		std::string echo_class_name;		// lecture name according to Echo360
+		std::string class_name;				// lecture name once converted into something usable
 		std::string class_date;				// the date of the lecture (necessary when the name of two or more lectures is the ssame).
 		bool summary;							// is this summary stats for the student? Else its for an individual lecture
 		long video_views;						// number of times the video has been viewed
@@ -124,6 +120,33 @@ class student_lecture_details
 			return false;
 			}
 	};
+
+/*
+	LECTURE_NAME()
+	--------------
+*/
+std::string lecture_name(const student_lecture_details &object)
+	{
+	/*
+		Use the date if the lecture title is somethng like this:
+			COSC204/LA1 2022,S2 QUAD4, 14 Jul - 13 Oct, Thursday 11AM-12PM
+		otherwise use the lecture title
+	*/
+	if (object.class_date == "N/A")
+		return object.echo_class_name;
+	else
+		{
+		size_t comma = 0;			// we'll look for 3 commas to signify the "bad" format
+		for (const char *ch = &object.echo_class_name[0]; *ch != '\0'; ch++)
+			if (*ch == ',')
+				comma++;
+
+		if (comma == 3)
+			return "L" + object.class_date;
+		else
+			return object.echo_class_name;
+		}
+	}
 
 /*
 	CLASS PARSE
@@ -255,13 +278,14 @@ void get_fields_from_line(student_lecture_details &answer, const std::string &li
 	answer.student_email = parser.get();						// "Student Email"
 	parser.get();														// "Student User ID"
 	answer.summary = parser.get() == "" ? false : true;	// "Section Name"
-	answer.class_name = parser.get();							// "Class"
+	answer.echo_class_name = parser.get();							// "Class"
 	answer.class_date = parser.get();							// "Lesson Date"
 	parser.get();														// Total Engagement"
 	parser.get();														// "Weighted Engagement %"
 	parser.get();														// "Attendance %"
 	answer.video_views = atol(parser.get().c_str());		// "Video Views"
 	answer.video_percent_viewed = atol(parser.get().c_str()); // "Video View %"
+	answer.class_name = lecture_name(answer);
 	}
 
 /*
@@ -289,9 +313,11 @@ int main(int argc, const char *argv[])
 	/*
 		Process each line in the input file and build a list of those rows we're interested in
 	*/
+	std::map<std::string, std::map<std::string, bool>> lecture_to_student;
 	std::vector<student_lecture_details> paper_data;
 	size_t line_number = 0;
 	size_t total_student_count = 0;
+	size_t total_lecture_count = 0;
 	std::string last_student_name = "";
 	for (const auto &line : line_list)
 		{
@@ -309,9 +335,23 @@ int main(int argc, const char *argv[])
 		student_lecture_details into;
 		get_fields_from_line(into, line);
 
+		/*
+			Count the number of lectures in the course
+		*/
+		if (into.summary)
+			total_lecture_count = 0;
+		else
+			total_lecture_count++;
+
+		/*
+			Remember these details if its a student watching enough of a video
+		*/
 		if (!into.summary && into.video_views != 0 && into.video_percent_viewed > MIN_PERCENT_VIEW_REQUIREMENT)
 			if (into.student_email.find("student") != std::string::npos)
+				{
+				lecture_to_student[into.class_name][into.student_name] = true;
 				paper_data.push_back(into);
+				}
 
 		/*
 			Count the number of students
@@ -349,10 +389,31 @@ int main(int argc, const char *argv[])
 	*/
 	std::sort(true_lecture_statistics.begin(), true_lecture_statistics.end());
 
+	/*
+		Dump the watch data for each lecture
+	*/
+	std::cout << "\"Lecture\",\"Watchers\",\"ClassSize\",\"WatchersPercent\",\"CumulativeWatchers\",\"CumulativeWatchersPercent\",\"MeanWatchersPerLecture\"\n";
+	size_t sum_of_watch_percents = 0;
+	std::map<std::string, bool> cumulative_watch_list;
 	for (const auto &current : true_lecture_statistics)
-		std::cout << current;
+		sum_of_watch_percents += current.percent_students_who_watched;
+	size_t average_percent_watch_rate = size_t((double)sum_of_watch_percents / (double)total_lecture_count);
+	for (const auto &current : true_lecture_statistics)
+		{
+		for (const auto &name : lecture_to_student[current.class_name])
+			cumulative_watch_list[name.first] = true;
+
+		std::cout << current << "," << cumulative_watch_list.size() << "," << size_t((double)cumulative_watch_list.size() / (double)total_student_count * 100) << "," << average_percent_watch_rate << '\n';
+		}
 
 #ifdef NEVER
+	/*
+		Dump summary watch data
+	*/
+	std::cout << "Students:" << total_student_count;
+	std::cout << " Lectures:" << total_lecture_count;
+	std::cout << " AveragePercentWatch:" << average_percent_watch_rate << "\n";
+
 	/*
 		Dump out the list of who watched which lectures
 	*/
@@ -361,5 +422,6 @@ int main(int argc, const char *argv[])
 		if (into.class_name == "L6 - Hello World")
 			std::cout << into.student_name << ',' << into.class_name << '[' << into.class_date << ']' << into.video_views << ' ' << into.video_percent_viewed << '\n';
 #endif
+
 	return 0;
 	}
