@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		49D3266B28E669B700C8EC39 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 49D3266A28E669B700C8EC39 /* main.cpp */; };
+		49D3266B28E669B700C8EC39 /* echo360-analysis.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 49D3266A28E669B700C8EC39 /* echo360-analysis.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,7 +24,7 @@
 
 /* Begin PBXFileReference section */
 		49D3266728E669B700C8EC39 /* echo360-analysis */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "echo360-analysis"; sourceTree = BUILT_PRODUCTS_DIR; };
-		49D3266A28E669B700C8EC39 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		49D3266A28E669B700C8EC39 /* echo360-analysis.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "echo360-analysis.cpp"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +57,7 @@
 		49D3266928E669B700C8EC39 /* echo360-analysis */ = {
 			isa = PBXGroup;
 			children = (
-				49D3266A28E669B700C8EC39 /* main.cpp */,
+				49D3266A28E669B700C8EC39 /* echo360-analysis.cpp */,
 			);
 			path = "echo360-analysis";
 			sourceTree = "<group>";
@@ -119,7 +119,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				49D3266B28E669B700C8EC39 /* main.cpp in Sources */,
+				49D3266B28E669B700C8EC39 /* echo360-analysis.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
